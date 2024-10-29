@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
@@ -8,6 +8,10 @@ import Link from 'next/link';
 interface PickingData {
   time: string;
   picks: number;
+}
+
+interface PickingEvent {
+  timestamp: string;
 }
 
 const timeFrames = ['D', 'W', 'M', '6M'];
@@ -24,7 +28,7 @@ export default function PickingHistory() {
   useEffect(() => {
     checkForData();
     fetchData(timeFrame, currentDate);
-  }, [timeFrame, currentDate]);
+  }, [timeFrame, currentDate, fetchData]);
 
   async function checkForData() {
     const { data, error } = await supabase
@@ -75,15 +79,14 @@ export default function PickingHistory() {
   
     console.log('Querying for date range:', startDate.toISOString(), 'to', endDate.toISOString());
   
-    const { data, error } = await supabase
+    const { data: pickingEvents, error } = await supabase
       .from('picking_events')
       .select('timestamp')
       .gte('timestamp', startDate.toISOString())
       .lt('timestamp', endDate.toISOString())
-      .order('timestamp', { ascending: true });
-      // .limit(10);
+      .order('timestamp', { ascending: true }) as { data: PickingEvent[] | null, error: any };
   
-    console.log('Query result:', data);
+    console.log('Query result:', pickingEvents);
     console.log('Query error:', error);
   
     if (error) {
@@ -93,7 +96,7 @@ export default function PickingHistory() {
       return;
     }
   
-    const processedData = processData(data, frame, startDate, endDate);
+    const processedData = processData(pickingEvents || [], frame, startDate, endDate);
     console.log('Processed data:', processedData);
   
     setData(processedData);

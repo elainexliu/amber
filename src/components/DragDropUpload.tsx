@@ -45,7 +45,7 @@ export default function DragDropUpload({ onFileUploaded }: DragDropUploadProps) 
       ) : isDragActive ? (
         <p>Drop the audio files here...</p>
       ) : (
-        <p>Drag 'n' drop some audio files here, or click to select files</p>
+        <p>Drag &apos;n&apos; drop some audio files here, or click to select files</p>
       )}
     </div>
   );

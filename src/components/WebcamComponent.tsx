@@ -44,7 +44,7 @@ export default function WebcamComponent({ setPicking }: WebcamComponentProps) {
       clearInterval(interval)
       stopWebcam()
     }
-  }, [loadAudioFiles])
+  }, [loadAudioFiles, checkForPicking, startWebcam, stopWebcam])
 
   useEffect(() => {
     if (audioRef.current) {

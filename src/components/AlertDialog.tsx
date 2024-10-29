@@ -18,7 +18,7 @@ export function PickingAlertDialog({ open }: PickingAlertDialogProps) {
         <AlertDialogHeader>
           <AlertDialogTitle className="text-amber-700">stop picking!</AlertDialogTitle>
           <AlertDialogDescription className="text-amber-600">
-            you've been detected picking at your lips. try to be mindful and avoid this behavior! put on some lip balm🙂
+            you&apos;ve been detected picking at your lips. try to be mindful and avoid this behavior! put on some lip balm🙂
           </AlertDialogDescription>
         </AlertDialogHeader>
       </AlertDialogContent>
