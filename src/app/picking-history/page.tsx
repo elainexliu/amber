@@ -10,10 +10,6 @@ interface PickingData {
   picks: number;
 }
 
-interface PickingEvent {
-  timestamp: string;
-}
-
 const timeFrames = ['D', 'W', 'M', '6M'];
 
 export default function PickingHistory() {
@@ -25,91 +21,8 @@ export default function PickingHistory() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkForData();
-    fetchData(timeFrame, currentDate);
-  }, [timeFrame, currentDate, fetchData]);
-
-  async function checkForData() {
-    const { data, error } = await supabase
-      .from('picking_events')
-      .select('timestamp')
-      .limit(1);
-  
-    if (error) {
-      console.error('Error checking for data:', error);
-      return;
-    }
-  
-    console.log('Data check result:', data);
-    if (data.length === 0) {
-      console.log('No data found in the picking_events table.');
-    } else {
-      console.log('Data found in the picking_events table.');
-    }
-  }
-
-  async function fetchData(frame: string, date: Date) {
-    setIsLoading(true);
-    setError(null);
-    let startDate: Date;
-    let endDate: Date;
-    const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-  
-    switch (frame) {
-      case 'D':
-        startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-        endDate = endOfDay;
-        break;
-      case 'W':
-        startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
-        endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 6, 23, 59, 59, 999);
-        break;
-      case 'M':
-        startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-        endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
-        break;
-      case '6M':
-        startDate = new Date(date.getFullYear(), date.getMonth() - 5, 1);
-        endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
-        break;
-      default:
-        throw new Error(`Invalid time frame: ${frame}`);
-    }
-  
-    console.log('Querying for date range:', startDate.toISOString(), 'to', endDate.toISOString());
-  
-    const { data: pickingEvents, error } = await supabase
-      .from('picking_events')
-      .select('timestamp')
-      .gte('timestamp', startDate.toISOString())
-      .lt('timestamp', endDate.toISOString())
-      .order('timestamp', { ascending: true }) as { data: PickingEvent[] | null, error: any };
-  
-    console.log('Query result:', pickingEvents);
-    console.log('Query error:', error);
-  
-    if (error) {
-      console.error('Error fetching data:', error);
-      setError('Failed to fetch data. Please try again.');
-      setIsLoading(false);
-      return;
-    }
-  
-    const processedData = processData(pickingEvents || [], frame, startDate, endDate);
-    console.log('Processed data:', processedData);
-  
-    setData(processedData);
-    setTotalPicks(calculateTotalPicks(processedData));
-    setMostActivePicking(calculateMostActivePicking(processedData));
-    setIsLoading(false);
-  }
-
-  function processData(data: { timestamp: string }[], frame: string, startDate: Date, endDate: Date) {
-    /*
-    Takes the raw data and transforms it into an array of objects with time and picks properties.
-    Handles different time frames (D, W, M, 6M) appropriately.
-    */
+  // Move processData outside of fetchData to avoid recreating it on every render
+  const processData = useCallback((data: { timestamp: string }[], frame: string, startDate: Date, endDate: Date) => {
     let processedData = [];
     let currentDate = new Date(startDate);
 
@@ -146,18 +59,69 @@ export default function PickingHistory() {
     }
 
     return processedData;
-  }
+  }, []);
 
-  function calculateTotalPicks(data: { picks: number }[]): number {
-    return data.reduce((sum, item) => sum + item.picks, 0);
-  }
+  const fetchData = useCallback(async (frame: string, date: Date) => {
+    setIsLoading(true);
+    setError(null);
 
-  function calculateMostActivePicking(data: { time: string; picks: number }[]) {
+    const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (frame) {
+      case 'D':
+        startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        endDate = endOfDay;
+        break;
+      case 'W':
+        startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
+        endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 6, 23, 59, 59, 999);
+        break;
+      case 'M':
+        startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+        break;
+      case '6M':
+        startDate = new Date(date.getFullYear(), date.getMonth() - 5, 1);
+        endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+        break;
+      default:
+        throw new Error(`Invalid time frame: ${frame}`);
+    }
+
+    try {
+      const { data: queryData, error: queryError } = await supabase
+        .from('picking_events')
+        .select('timestamp')
+        .gte('timestamp', startDate.toISOString())
+        .lt('timestamp', endDate.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (queryError) throw queryError;
+
+      const processedData = processData(queryData || [], frame, startDate, endDate);
+      setData(processedData);
+      setTotalPicks(processedData.reduce((sum, item) => sum + item.picks, 0));
+      setMostActivePicking(calculateMostActivePicking(processedData));
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to fetch data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [processData]);
+
+  // Simplified calculateMostActivePicking function
+  const calculateMostActivePicking = useCallback((data: PickingData[]) => {
     const maxPicks = Math.max(...data.map(item => item.picks));
     const mostActiveItem = data.find(item => item.picks === maxPicks);
     return mostActiveItem ? mostActiveItem.time : 'N/A';
-  }
+  }, []);
 
+  useEffect(() => {
+    fetchData(timeFrame, currentDate);
+  }, [timeFrame, currentDate, fetchData]); // Remove checkForData from dependencies
   function navigateDate(direction: number) {
     const newDate = new Date(currentDate);
     switch (timeFrame) {
